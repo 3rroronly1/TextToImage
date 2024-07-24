@@ -4,8 +4,8 @@ from PIL import Image, ImageDraw, ImageFont
 import random
 import os
 
-def random_filename(extension=".png"):
-    return f"image_{random.randint(1000, 9999)}{extension}"
+def sequential_filename(base_name, start_index, extension=".png"):
+    return f"{base_name}_{start_index}{extension}"
 
 def convert_units(value, unit):
     if unit == "cm":
@@ -74,6 +74,12 @@ class TextToImageApp:
 
         self.browse_button = tk.Button(self.image_converter_tab, text="Browse", command=self.browse_images)
         self.browse_button.grid(row=0, column=2, padx=10, pady=5)
+
+        self.select_all_button = tk.Button(self.image_converter_tab, text="Select All", command=self.select_all_images)
+        self.select_all_button.grid(row=1, column=2, padx=10, pady=5)
+
+        self.deselect_all_button = tk.Button(self.image_converter_tab, text="Deselect All", command=self.deselect_all_images)
+        self.deselect_all_button.grid(row=2, column=2, padx=10, pady=5)
 
         tk.Label(self.image_converter_tab, text="Width:").grid(row=1, column=0, padx=10, pady=5)
         self.convert_width_entry = tk.Entry(self.image_converter_tab)
@@ -146,42 +152,42 @@ class TextToImageApp:
                 text_bbox = draw.textbbox((0, 0), text, font=font)
                 text_width = text_bbox[2] - text_bbox[0]
                 text_height = text_bbox[3] - text_bbox[1]
-
-                if text_width > large_width - 40 or text_height > large_height - 40:
-                    if font_size <= 10:  # Minimum font size
-                        break
-                    font_size -= 10
-                    font = ImageFont.truetype(font_path, font_size)
-                else:
+                if text_width <= width and text_height <= height:
                     break
+                font_size -= 1
+                font = ImageFont.truetype(font_path, font_size)
 
-            # Draw text
-            text_bbox = draw.textbbox((0, 0), text, font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-            text_height = text_bbox[3] - text_bbox[1]
-            text_x = (large_width - text_width) / 2
-            text_y = (large_height - text_height) / 2
-            draw.text((text_x, text_y), text, font=font, fill=text_color)
+            # Center the text
+            x = (large_width - text_width) // 2
+            y = (large_height - text_height) // 2
 
-            # Resize to user-specified dimensions
-            resized_image = large_image.resize((width, height), Image.LANCZOS)
+            # Draw the text onto the large image
+            draw.text((x, y), text, fill=text_color, font=font)
 
-            # Save image with random name
-            file_name = random_filename()
-            resized_image.save(file_name)
-            messagebox.showinfo("Success", f"Image saved as {file_name}")
-        except ValueError as e:
-            messagebox.showerror("Error", str(e))
+            # Crop the image to the size of the text
+            cropped_image = large_image.crop((0, 0, text_width + 40, text_height + 40))
+
+            filename = sequential_filename("text_image", 1, self.output_extension)
+            cropped_image.save(filename)
+            messagebox.showinfo("Success", f"Image successfully saved as {filename}")
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
     def browse_images(self):
-        file_paths = filedialog.askopenfilenames(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp;*.gif")])
-        self.image_listbox.delete(0, tk.END)
-        for file_path in file_paths:
-            self.image_listbox.insert(tk.END, file_path)
-        # Auto-select all images in the listbox
+        file_paths = filedialog.askopenfilenames(filetypes=[("Image Files", "*.png;*.jpg;*.bmp")])
+        if file_paths:
+            self.image_listbox.delete(0, tk.END)
+            for file_path in file_paths:
+                self.image_listbox.insert(tk.END, file_path)
+            
+            # Automatically select all items in the Listbox
+            self.select_all_images()
+
+    def select_all_images(self):
         self.image_listbox.select_set(0, tk.END)
+
+    def deselect_all_images(self):
+        self.image_listbox.select_clear(0, tk.END)
 
     def convert_images(self):
         try:
@@ -200,16 +206,24 @@ class TextToImageApp:
             if not selected_files:
                 raise ValueError("No images selected")
 
+            saved_files_count = 0
+            start_index = 1
             for index in selected_files:
                 file_path = self.image_listbox.get(index)
                 try:
                     with Image.open(file_path) as img:
                         img_resized = img.resize((width, height))
-                        file_name = random_filename(extension=extension)
+                        file_name = sequential_filename("converted_image", start_index, extension)
                         img_resized.save(file_name)
-                        messagebox.showinfo("Success", f"Image saved as {file_name}")
+                        saved_files_count += 1
+                        start_index += 1
                 except Exception as e:
                     messagebox.showerror("Error", f"Error processing {file_path}: {str(e)}")
+
+            if saved_files_count > 0:
+                messagebox.showinfo("Success", f"Total number of images saved: {saved_files_count}")
+            else:
+                messagebox.showinfo("No Images", "No images were successfully saved.")
         except ValueError as e:
             messagebox.showerror("Error", str(e))
         except Exception as e:
@@ -219,3 +233,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = TextToImageApp(root)
     root.mainloop()
+
