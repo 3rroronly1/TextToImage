@@ -7,6 +7,9 @@ import os
 def sequential_filename(base_name, start_index, extension=".png"):
     return f"{base_name}_{start_index}{extension}"
 
+def random_filename(extension=".png"):
+    return f"image_{random.randint(1000, 9999)}{extension}"
+
 def convert_units(value, unit):
     if unit == "cm":
         return int(value * 37.7952755906)  # cm to pixels (approx)
@@ -136,40 +139,48 @@ class TextToImageApp:
             width = convert_units(float(width), unit)
             height = convert_units(float(height), unit)
 
-            # Create a large enough image to fit the text
-            large_width = 3000  # Increased size for more space
-            large_height = 3000  # Increased size for more space
+            large_width = 3000
+            large_height = 3000
             large_image = Image.new('RGBA', (large_width, large_height), bg_color)
             draw = ImageDraw.Draw(large_image)
 
-            # Use a monospaced font for ASCII art
-            font_size = 100  # Start with a large font size
-            font_path = "arial.ttf"  # Adjust path if needed
+            font_size = 100
+            font_path = "arial.ttf"
             font = ImageFont.truetype(font_path, font_size)
 
-            # Adjust font size until text fits
             while True:
                 text_bbox = draw.textbbox((0, 0), text, font=font)
                 text_width = text_bbox[2] - text_bbox[0]
                 text_height = text_bbox[3] - text_bbox[1]
-                if text_width <= width and text_height <= height:
-                    break
-                font_size -= 1
-                font = ImageFont.truetype(font_path, font_size)
 
-            # Center the text
-            x = (large_width - text_width) // 2
-            y = (large_height - text_height) // 2
+                if text_width > large_width - 40 or text_height > large_height - 40:
+                    if font_size <= 10:
+                        break
+                    font_size -= 10
+                    font = ImageFont.truetype(font_path, font_size)
+                else:
+                    if text_width <= width and text_height <= height:
+                        break
+                    font_size -= 1
+                    font = ImageFont.truetype(font_path, font_size)
 
-            # Draw the text onto the large image
-            draw.text((x, y), text, fill=text_color, font=font)
+            # Draw text
+            text_bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            text_x = (large_width - text_width) / 2
+            text_y = (large_height - text_height) / 2
+            draw.text((text_x, text_y), text, font=font, fill=text_color)
 
-            # Crop the image to the size of the text
-            cropped_image = large_image.crop((0, 0, text_width + 40, text_height + 40))
+            # Resize to user-specified dimensions
+            resized_image = large_image.resize((width, height), Image.LANCZOS)
 
-            filename = sequential_filename("text_image", 1, self.output_extension)
-            cropped_image.save(filename)
-            messagebox.showinfo("Success", f"Image successfully saved as {filename}")
+            # Save image with random name
+            file_name = random_filename()
+            resized_image.save(file_name)
+            messagebox.showinfo("Success", f"Image saved as {file_name}")
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
@@ -179,8 +190,6 @@ class TextToImageApp:
             self.image_listbox.delete(0, tk.END)
             for file_path in file_paths:
                 self.image_listbox.insert(tk.END, file_path)
-            
-            # Automatically select all items in the Listbox
             self.select_all_images()
 
     def select_all_images(self):
@@ -233,4 +242,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = TextToImageApp(root)
     root.mainloop()
-
